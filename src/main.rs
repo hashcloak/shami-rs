@@ -6,10 +6,9 @@ use clap::Parser;
 use math::mersenne61::Mersenne61;
 use mpc::{reconstruct_secret, run_multiply_protocol, share::ShamirShare};
 use net::{Network, Packet};
-use std::time::Duration;
-use std::{error::Error, thread};
+use std::error::Error;
 
-/// Implementation of a player connected to a network.
+/// Implementation of a node to execute a Shamir secret-sharing protocol.
 #[derive(Parser, Debug)]
 #[command(about)]
 struct Args {
