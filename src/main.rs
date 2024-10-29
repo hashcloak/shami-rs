@@ -30,7 +30,9 @@ struct Args {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    env_logger::init();
+    let mut log_builder = env_logger::Builder::new();
+    log_builder.filter_level(log::LevelFilter::Info).init();
+
     let args = Args::parse();
 
     // Create the network for communication.

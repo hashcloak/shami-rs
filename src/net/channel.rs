@@ -118,7 +118,7 @@ impl Channel for TcpChannel {
             stream.shutdown(std::net::Shutdown::Both)?;
         }
         self.stream = None;
-        log::info!("channel successfully created");
+        log::info!("channel successfully closed");
         Ok(())
     }
 
@@ -184,6 +184,7 @@ pub struct LoopBackChannel {
 impl Channel for LoopBackChannel {
     fn close(&mut self) -> anyhow::Result<()> {
         self.buffer.clear();
+        log::info!("channel successfully closed");
         Ok(())
     }
 
