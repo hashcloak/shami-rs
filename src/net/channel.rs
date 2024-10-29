@@ -160,7 +160,7 @@ impl Channel for TcpChannel {
 
                 log::info!(
                     "received packet from peer {:?} with {} bytes",
-                    stream.peer_addr(),
+                    stream.peer_addr()?,
                     packet_size,
                 );
 
