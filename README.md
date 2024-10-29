@@ -10,6 +10,10 @@ $x_1 \times \cdots \times x_n$ where $x_i$ is the input of party $P_i$. Currentl
 project runs using the IP of localhost, but the source code can be modified to run
 in a distributed way.
 
+This protocol is implemented using the Mersenne61 field, which means that all the
+operations are performed in $\mathbb{Z}_p$ for $p = 2^61 - 1$. The implementation
+of the field arithmetic is done from scratch.
+
 This project does not consider the following features yet:
 
 - Private and reliable communication channels.
@@ -18,6 +22,10 @@ This project does not consider the following features yet:
 - The implementation is not performant.
 - The parameters of the application are not configurable without modifying the source
   code.
+
+This project is intended to be a learning resource for people who want to know the first
+steps on implementing a network for an MPC protocol, as there is no (or very few) material on the topic.
+Also, it presents a basic, non-performant implementation of the field arithmetic for those curious about it.
 
 ## How to run
 
