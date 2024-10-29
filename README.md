@@ -36,5 +36,23 @@ Options:
   -h, --help                       Print help
 ```
 
+To run the application, you need to open multiple terminals and define the command-line inputs
+accordingly. For example, suppose that you want to execute the protocol for three parties with one corruption.
+Hence, you must open three different terminals and write the following commands for each terminal as follows:
+
+```text
+-- For Party 0:
+$ shami-rs -i 0 -n 3 -c 1 --input <INPUT>
+
+-- For Party 1:
+$ shami-rs -i 1 -n 3 -c 1 --input <INPUT>
+
+-- For Party 2:
+$ shami-rs -i 2 -n 3 -c 1 --input <INPUT>
+```
+
+It is important to mention that the parties are indexed in such a way that the first index is 0.
+Also, they are indexed consecutively.
+
 > [!NOTE]
 > This repository came as a result of a learning project by @hdvanegasm.

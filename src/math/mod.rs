@@ -62,11 +62,6 @@ pub trait FiniteField:
 pub struct Polynomial<T: FiniteField>(Vec<T>);
 
 impl<T: FiniteField> Polynomial<T> {
-    /// Returns the degree of the polynomial.
-    pub fn degree(&self) -> usize {
-        self.0.len() - 1
-    }
-
     /// Evaluates the polynomial on a give value.
     pub fn evaluate(&self, value: &T) -> T {
         let mut result = self.0.last().unwrap().clone();

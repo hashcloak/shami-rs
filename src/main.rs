@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 mod math;
 mod mpc;
 mod net;
@@ -112,6 +110,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mult_result = reconstruct_secret(mult_shares_remote);
 
     log::info!("the multiplication result is: {:?}", mult_result);
+
+    network.close()?;
 
     Ok(())
 }

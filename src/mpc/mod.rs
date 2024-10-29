@@ -1,34 +1,15 @@
-use std::fmt::Debug;
-
 use rand::Rng;
 use share::ShamirShare;
-use thiserror::Error;
 
 use crate::{
     math::{
         lagrange::{compute_lagrange_basis, interpolate_polynomial_at},
         FiniteField, Polynomial,
     },
-    net::{channel::ChannelError, Network, Packet},
+    net::{Network, Packet},
 };
 
 pub mod share;
-
-/// Errors that can arise during protocol execution.
-#[derive(Error, Debug)]
-pub enum ProtocolError {
-    #[error("error during serialization of the share: {0:?}")]
-    BadSerialization(bincode::Error),
-
-    #[error("error during deserialization of the share: {0:?}")]
-    BadDeserialization(bincode::Error),
-
-    #[error("error sending the share: {0:?}")]
-    SendShareError(ChannelError),
-
-    #[error("share reception error: {0:?}")]
-    RecvShareError(ChannelError),
-}
 
 /// Computes the shamir shares of a secret.
 pub fn compute_shamir_share<T, R>(
@@ -77,7 +58,7 @@ pub fn run_multiply_protocol<T, R>(
     threshold: usize,
     rng: &mut R,
     network: &mut Network,
-) -> Result<ShamirShare<T>, ProtocolError>
+) -> anyhow::Result<ShamirShare<T>>
 where
     T: FiniteField,
     R: Rng,
@@ -88,10 +69,8 @@ where
     // Send product shares to other parties
     log::info!("sending shares of the product share of degree 2 * d");
     for (i, share) in h_own_shares.iter().enumerate() {
-        let share_bytes = bincode::serialize(&share).map_err(ProtocolError::BadSerialization)?;
-        network
-            .send_to(&Packet::new(share_bytes), i)
-            .map_err(ProtocolError::SendShareError)?;
+        let share_bytes = bincode::serialize(&share)?;
+        network.send_to(&Packet::new(share_bytes), i)?;
     }
 
     log::debug!("sending own shares of h(i): {:?}", h_own_shares);
@@ -100,11 +79,8 @@ where
     log::info!("receiving shares of the product from other parties");
     let mut h_shares = Vec::with_capacity(n_parties);
     for i in 0..n_parties {
-        let share_packet = network
-            .recv_from(i)
-            .map_err(ProtocolError::RecvShareError)?;
-        let share: ShamirShare<T> = bincode::deserialize(share_packet.as_slice())
-            .map_err(ProtocolError::BadDeserialization)?;
+        let share_packet = network.recv_from(i)?;
+        let share: ShamirShare<T> = bincode::deserialize(share_packet.as_slice())?;
         h_shares.push(share);
     }
 

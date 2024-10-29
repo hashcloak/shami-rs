@@ -1,6 +1,6 @@
 use crate::net::Packet;
 use std::collections::VecDeque;
-use std::io::{self, Read, Write};
+use std::io::{Read, Write};
 use std::{
     net::{SocketAddr, TcpListener, TcpStream},
     time::{Duration, Instant},
@@ -10,33 +10,24 @@ use thiserror::Error;
 /// Possible errors that may appear in a channel.
 #[derive(Debug, Error)]
 pub enum ChannelError {
-    #[error("channel reception error")]
-    ChannelRecvError,
+    #[error("connection timeout")]
+    Timeout,
 
-    #[error("channel sending error")]
-    ChannelSendError,
+    #[error("the channel is not alive")]
+    NotAlive,
 
-    #[error("channel is not alive")]
-    ChannelNotAlive,
-
-    #[error("the channel is empty")]
-    EmptyBufferError,
-
-    #[error("can not retrieve the peer")]
-    PeerUnknown,
-
-    #[error("the channel has not received any data")]
-    NoData,
+    #[error("channel buffer is empty")]
+    EmptyBuffer,
 }
 
 /// Defines a channel of the network.
 pub trait Channel {
     /// Closes a channel.
-    fn close(&mut self) -> io::Result<()>;
+    fn close(&mut self) -> anyhow::Result<()>;
     /// Send a packet using the current channel.
-    fn send(&mut self, packet: &Packet) -> Result<usize, ChannelError>;
+    fn send(&mut self, packet: &Packet) -> anyhow::Result<usize>;
     /// Receives a packet from the current channel.
-    fn recv(&mut self) -> Result<Packet, ChannelError>;
+    fn recv(&mut self) -> anyhow::Result<Packet>;
 }
 
 /// Representation of a TCP channel between two parties.
@@ -48,21 +39,13 @@ pub struct TcpChannel {
 }
 
 impl TcpChannel {
-    /// Maximum size of the buffer that is received using the TCP channel.
-    const MAX_BUFFER_SIZE: usize = 1024;
-    /// Maximum default timeout for reception in ms.
-    const DEFAULT_RECV_TIMEOUT: u64 = 10000;
-
     /// Accepts a connection in the corresponding listener.
-    pub(crate) fn accept_connection(listener: &TcpListener) -> io::Result<(TcpChannel, usize)> {
+    pub(crate) fn accept_connection(listener: &TcpListener) -> anyhow::Result<(TcpChannel, usize)> {
         let (mut channel, socket) = listener.accept()?;
 
         // Once the client is connected, we receive his ID from the current established channel.
         let mut id_buffer = [0; (usize::BITS / 8) as usize];
-        channel.read_exact(&mut id_buffer).map_err(|err| {
-            log::error!("error while reading the ID of the peer {:?}", err);
-            err
-        })?;
+        channel.read_exact(&mut id_buffer)?;
         let remote_id = usize::from_le_bytes(id_buffer);
         log::info!(
             "accepted connection request acting like a server from {:?} with ID {}",
@@ -87,7 +70,7 @@ impl TcpChannel {
         remote_addr: SocketAddr,
         timeout: Duration,
         sleep_time: Duration,
-    ) -> io::Result<TcpChannel> {
+    ) -> anyhow::Result<TcpChannel> {
         let start_time = Instant::now();
 
         // Repeatedly tries to connect to the server during the timeout.
@@ -97,26 +80,19 @@ impl TcpChannel {
                 Ok(mut stream) => {
                     // Send the id of the party that is connecting to the
                     // server once the connection is successfull.
-                    stream
-                        .write_all(&local_id.to_le_bytes())
-                        .inspect_err(|err| {
-                            log::error!(
-                            "error connecting as a client while sending the local ID {} to {:?}: {err}",
-                            local_id,
-                            stream.peer_addr()
-                        );
-                        })?;
+                    stream.write_all(&local_id.to_le_bytes())?;
 
                     log::info!(
                         "connected successfully with {:?} using the local port {:?}",
                         remote_addr,
                         stream.local_addr()?
                     );
+
                     return Ok(Self {
                         stream: Some(stream),
                     });
                 }
-                Err(e) => {
+                Err(_) => {
                     let elapsed = start_time.elapsed();
                     if elapsed > timeout {
                         // At this moment the enlapsed time passed the timeout. Hence we return an
@@ -125,7 +101,7 @@ impl TcpChannel {
                             "timeout reached, server not listening from ID {local_id} to server {:?}",
                             remote_addr
                         );
-                        return Err(io::Error::from(e.kind()));
+                        anyhow::bail!(ChannelError::Timeout)
                     }
                     // The connection was not successfull. Hence, we try to connect again with the
                     // "server" party.
@@ -137,7 +113,7 @@ impl TcpChannel {
 }
 
 impl Channel for TcpChannel {
-    fn close(&mut self) -> io::Result<()> {
+    fn close(&mut self) -> anyhow::Result<()> {
         if let Some(stream) = &self.stream {
             stream.shutdown(std::net::Shutdown::Both)?;
         }
@@ -146,70 +122,53 @@ impl Channel for TcpChannel {
         Ok(())
     }
 
-    fn send(&mut self, packet: &Packet) -> Result<usize, ChannelError> {
+    fn send(&mut self, packet: &Packet) -> anyhow::Result<usize> {
         match &mut self.stream {
             Some(stream) => {
-                let bytes = stream.write(packet.as_slice()).map_err(|err| {
-                    log::error!(
-                        "error writing the packet to {:?}: {:?}",
-                        stream.peer_addr(),
-                        err,
-                    );
-                    ChannelError::ChannelSendError
-                })?;
+                // First, we need to send the size of the packet to be able to know the amout
+                // of bits that are being sent.
+                let packet_size = packet.size();
+                let bytes_size_packet = bincode::serialize(&packet_size)?;
+                stream.write_all(&bytes_size_packet)?;
+
+                // Then, we send the actual packet.
+                stream.write_all(packet.as_slice())?;
                 log::info!(
                     "sent packet to peer {:?} with {} bytes",
-                    stream.peer_addr().map_err(|err| {
-                        log::error!("Peer unknown: {:?}", err);
-                        ChannelError::PeerUnknown
-                    })?,
-                    bytes
+                    stream.peer_addr()?,
+                    packet.size()
                 );
-                Ok(bytes)
+                Ok(packet.size())
             }
             None => {
                 log::error!("the channel is not connected yet");
-                Err(ChannelError::ChannelNotAlive)
+                anyhow::bail!(ChannelError::NotAlive)
             }
         }
     }
 
-    fn recv(&mut self) -> Result<Packet, ChannelError> {
+    fn recv(&mut self) -> anyhow::Result<Packet> {
         match &mut self.stream {
             Some(stream) => {
-                let initial_time = Instant::now();
-                // Blocks the channel for a certain timeout until it receives the message. If the
-                // timeout is completed, then an error is emmited.
-                let (buffer, bytes) = loop {
-                    let mut buffer = [0; Self::MAX_BUFFER_SIZE];
-                    let bytes = stream.read(&mut buffer).map_err(|err| {
-                        log::error!(
-                            "error receiving packet from peer {:?}: {:?}",
-                            stream.peer_addr(),
-                            err
-                        );
-                        ChannelError::ChannelRecvError
-                    })?;
+                let mut buffer_packet_size = [0; (usize::BITS / 8) as usize];
+                stream.read_exact(&mut buffer_packet_size)?;
+                let packet_size: usize = bincode::deserialize(&buffer_packet_size)?;
 
-                    if bytes == 0 {
-                        let elapsed_time = Instant::now() - initial_time;
-                        if elapsed_time > Duration::from_millis(Self::DEFAULT_RECV_TIMEOUT) {
-                            return Err(ChannelError::NoData);
-                        }
-                    } else {
-                        break (buffer, bytes);
-                    }
-                };
+                // Then, we receive the buffer the amount bytes until the end is reached.
+                let mut payload_buffer = vec![0; packet_size];
+                stream.read_exact(&mut payload_buffer)?;
+
                 log::info!(
                     "received packet from peer {:?} with {} bytes",
                     stream.peer_addr(),
-                    bytes
+                    packet_size,
                 );
-                Ok(Packet::from(&buffer[0..bytes]))
+
+                Ok(Packet::new(payload_buffer))
             }
             None => {
                 log::error!("the channel is not alive to receive information");
-                Err(ChannelError::ChannelNotAlive)
+                anyhow::bail!(ChannelError::NotAlive)
             }
         }
     }
@@ -223,21 +182,21 @@ pub struct LoopBackChannel {
 }
 
 impl Channel for LoopBackChannel {
-    fn close(&mut self) -> io::Result<()> {
+    fn close(&mut self) -> anyhow::Result<()> {
         self.buffer.clear();
         Ok(())
     }
 
-    fn send(&mut self, packet: &Packet) -> Result<usize, ChannelError> {
+    fn send(&mut self, packet: &Packet) -> anyhow::Result<usize> {
         log::info!("sent {} bytes to myself", packet.0.len());
         self.buffer.push_back(Packet::from(packet.as_slice()));
         Ok(packet.0.len())
     }
 
-    fn recv(&mut self) -> Result<Packet, ChannelError> {
+    fn recv(&mut self) -> anyhow::Result<Packet> {
         log::info!("received packet from myself");
         self.buffer
             .pop_front()
-            .ok_or(ChannelError::EmptyBufferError)
+            .ok_or(anyhow::Error::new(ChannelError::EmptyBuffer))
     }
 }
