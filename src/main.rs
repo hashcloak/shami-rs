@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 mod math;
 mod mpc;
 mod net;
@@ -50,17 +52,19 @@ fn main() -> Result<(), Box<dyn Error>> {
     // Send the share to all the parties.
     log::info!("sending the shares of the input to the other parties");
     for (i, share) in own_shares.iter().enumerate() {
+        log::debug!("sending share to party {i}: {:?}", share);
         let share_bytes = bincode::serialize(&share)?;
         let share_packet = Packet::new(share_bytes);
         network.send_to(&share_packet, i)?;
     }
+    let mut shares = Vec::with_capacity(args.n_parties);
 
     // Receive the shares from all the parties.
-    log::info!("receiving shares fo the inputs from other parties");
-    let mut shares = Vec::with_capacity(args.n_parties);
+    log::info!("receiving shares of the inputs from other parties");
     for i in 0..args.n_parties {
         let packet = network.recv_from(i)?;
         let share: ShamirShare<Mersenne61> = bincode::deserialize(packet.as_slice())?;
+        log::debug!("received share from party {i}: {:?}", share);
         shares.push(share);
     }
 
@@ -75,7 +79,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         &mut rng,
         &mut network,
     )?;
-    for share in shares.iter().rev().take(args.n_parties - 2) {
+    for share in shares.iter().skip(2) {
         mult_share = run_multiply_protocol(
             &mult_share,
             share,
@@ -88,6 +92,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     // Open the secret by sending the shares to other parties.
     log::info!("sending the shares of the result to other parties");
+    log::debug!("the share of party {} is {:?}", args.id, mult_share);
     let mult_share_bytes = bincode::serialize(&mult_share)?;
     let mult_share_packet = Packet::new(mult_share_bytes);
     network.send(&mult_share_packet)?;
@@ -98,8 +103,11 @@ fn main() -> Result<(), Box<dyn Error>> {
     for i in 0..args.n_parties {
         let packet = network.recv_from(i)?;
         let share: ShamirShare<Mersenne61> = bincode::deserialize(packet.as_slice())?;
+        log::debug!("received share from party {i}: {:?}", share);
         mult_shares_remote.push(share);
     }
+
+    log::debug!("multiplications shares: {:?}", mult_shares_remote);
 
     let mult_result = reconstruct_secret(mult_shares_remote);
 

@@ -58,7 +58,7 @@ pub trait FiniteField:
 }
 
 /// Represents a polynomial whose coefficients are elements in a finite field.
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Debug)]
 pub struct Polynomial<T: FiniteField>(Vec<T>);
 
 impl<T: FiniteField> Polynomial<T> {

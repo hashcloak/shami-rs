@@ -14,6 +14,7 @@ use crate::{
 
 pub mod share;
 
+/// Errors that can arise during protocol execution.
 #[derive(Error, Debug)]
 pub enum ProtocolError {
     #[error("error during serialization of the share: {0:?}")]
@@ -29,6 +30,7 @@ pub enum ProtocolError {
     RecvShareError(ChannelError),
 }
 
+/// Computes the shamir shares of a secret.
 pub fn compute_shamir_share<T, R>(
     secret: &T,
     n_parties: usize,
@@ -39,9 +41,11 @@ where
     T: FiniteField,
     R: Rng,
 {
-    log::info!("computing Shamir share of secret value");
+    log::info!("computing Shamir share of secret value: {:?}", secret);
     let mut rand_poly = Polynomial::random(threshold, rng);
     rand_poly[0] = secret.clone();
+
+    log::debug!("using polynomial to share the secret: {:?}", rand_poly);
 
     let mut shares = Vec::with_capacity(n_parties);
 
@@ -53,6 +57,7 @@ where
     shares
 }
 
+/// Reconstructs a secret given its shares.
 pub fn reconstruct_secret<T>(shares: Vec<ShamirShare<T>>) -> T
 where
     T: FiniteField,
@@ -64,10 +69,10 @@ where
     interpolate_polynomial_at(share_values, alphas, &T::ZERO)
 }
 
-/// Run the protocol to multiply `a` and `b`.
+/// Run the protocol to multiply `a` and `b`, where `a` and `b` are already secret shared.
 pub fn run_multiply_protocol<T, R>(
-    b: &ShamirShare<T>,
     a: &ShamirShare<T>,
+    b: &ShamirShare<T>,
     n_parties: usize,
     threshold: usize,
     rng: &mut R,
@@ -112,7 +117,7 @@ where
     );
 
     let mut mult_share = h_shares[0].multiply_const(&basis[0]);
-    for (r, share) in basis.into_iter().zip(h_shares).rev().take(n_parties - 1) {
+    for (r, share) in basis.into_iter().zip(h_shares).skip(1) {
         mult_share = mult_share.add(&share.multiply_const(&r));
     }
 
