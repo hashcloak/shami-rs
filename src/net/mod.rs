@@ -2,10 +2,17 @@ pub mod channel;
 
 use crate::net::channel::{Channel, TcpChannel};
 use channel::LoopBackChannel;
+use serde_json::Value;
 use std::{
     cmp::Ordering,
     net::{Ipv4Addr, SocketAddr, TcpListener},
+    path::Path,
+    str::FromStr,
     time::Duration,
+};
+use std::{
+    fs,
+    io::{Error, ErrorKind},
 };
 
 /// Packet of information sent through a given channel.
@@ -34,6 +41,57 @@ impl From<&[u8]> for Packet {
     }
 }
 
+/// Configuration of the network
+pub struct NetworkConfig {
+    /// Port that will be use as a base to define the port of each party. Party `i` will listen at
+    /// port `base_port + i`.
+    base_port: u16,
+    /// Timeout for receiving a message after calling the `recv()` function.
+    timeout: Duration,
+    /// Sleep time before trying to connect again with other party.
+    sleep_time: Duration,
+    /// IPs of each peer.
+    pub peer_ips: Vec<Ipv4Addr>,
+}
+
+impl NetworkConfig {
+    /// Creates a configuration for the network from a configuration file.
+    pub fn new(path_file: &Path) -> anyhow::Result<Self> {
+        let json_content = fs::read_to_string(path_file)?;
+        let json: Value = serde_json::from_str(&json_content)?;
+
+        let peers_ips_json = json["peer_ips"].as_array().ok_or(Error::new(
+            ErrorKind::InvalidInput,
+            "the array of peers is not correct",
+        ))?;
+
+        let mut peer_ips = Vec::new();
+        for ip_value in peers_ips_json {
+            let ip_str = ip_value.as_str().ok_or(Error::new(
+                ErrorKind::InvalidInput,
+                "the ip of peer is not correct",
+            ))?;
+            peer_ips.push(Ipv4Addr::from_str(ip_str)?);
+        }
+
+        Ok(Self {
+            base_port: json["base_port"].as_u64().ok_or(Error::new(
+                ErrorKind::InvalidInput,
+                "the base port is not correct",
+            ))? as u16,
+            timeout: Duration::from_millis(json["timeout"].as_u64().ok_or(Error::new(
+                ErrorKind::InvalidInput,
+                "the timout is not correct",
+            ))?),
+            sleep_time: Duration::from_millis(json["sleep_time"].as_u64().ok_or(Error::new(
+                ErrorKind::InvalidInput,
+                "the timeout is not correct",
+            ))?),
+            peer_ips,
+        })
+    }
+}
+
 /// Network that contains all the channels connected to the party. Each channel is
 /// a connection to other parties.
 pub struct Network {
@@ -42,25 +100,14 @@ pub struct Network {
 }
 
 impl Network {
-    /// Base port used to find the port to the corresponding party. The port `BASE_PORT + i` is
-    /// assigned to the party i.
-    pub const BASE_PORT: u16 = 5000;
-
-    /// IP of the localhost.
-    pub const LOCALHOST_IP: Ipv4Addr = Ipv4Addr::new(127, 0, 0, 1);
-
-    /// Timeout to wait for connections.
-    pub const DEFAULT_TIMEOUT: Duration = Duration::from_secs(100);
-
-    /// Default time to sleep between conetion trials.
-    pub const DEFAULT_SLEEP: Duration = Duration::from_millis(500);
-
     /// Creates a new network using the ID of the current party and the number of parties connected
     /// to the network.
-    pub fn create(id: usize, n_parties: usize) -> anyhow::Result<Self> {
+    pub fn create(id: usize, config: NetworkConfig) -> anyhow::Result<Self> {
         log::info!("creating network");
-        let server_port = Self::BASE_PORT + id as u16;
-        let server_address = SocketAddr::new(std::net::IpAddr::V4(Self::LOCALHOST_IP), server_port);
+        let n_parties = config.peer_ips.len();
+        let server_port = config.base_port + id as u16;
+        let server_address =
+            SocketAddr::new(std::net::IpAddr::V4(config.peer_ips[id]), server_port);
         let server_listener = TcpListener::bind(server_address)?;
         log::info!("listening on {:?}", server_address);
 
@@ -77,14 +124,14 @@ impl Network {
             match i.cmp(&id) {
                 Ordering::Less => {
                     log::info!("connecting as a client with peer ID {i}");
-                    let remote_port = Self::BASE_PORT + i as u16;
+                    let remote_port = config.base_port + i as u16;
                     let remote_address =
-                        SocketAddr::new(std::net::IpAddr::V4(Self::LOCALHOST_IP), remote_port);
+                        SocketAddr::new(std::net::IpAddr::V4(config.peer_ips[i]), remote_port);
                     let channel = TcpChannel::connect_as_client(
                         id,
                         remote_address,
-                        Self::DEFAULT_TIMEOUT,
-                        Self::DEFAULT_SLEEP,
+                        config.timeout,
+                        config.sleep_time,
                     )?;
                     peers[i] = Box::new(channel);
                 }
