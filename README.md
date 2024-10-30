@@ -20,8 +20,6 @@ This project does not consider the following features yet:
 - The network implementation does not consider delays in communication.
 - There are not enough tests.
 - The implementation is not performant.
-- The parameters of the application are not configurable without modifying the source
-  code.
 
 This project is intended to be a learning resource for people who want to know the first
 steps on implementing a network for an MPC protocol, as there is no (or very few) material on the topic.
