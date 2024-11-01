@@ -6,7 +6,7 @@ use clap::Parser;
 use math::mersenne61::Mersenne61;
 use mpc::{reconstruct_secret, run_multiply_protocol, share::ShamirShare};
 use net::{Network, NetworkConfig, Packet};
-use std::{error::Error, fs::File, path::Path};
+use std::{error::Error, path::Path};
 
 /// Implementation of a node to execute a Shamir secret-sharing protocol.
 #[derive(Parser, Debug)]
@@ -28,7 +28,7 @@ struct Args {
 
 fn main() -> Result<(), Box<dyn Error>> {
     let mut log_builder = env_logger::Builder::new();
-    log_builder.filter_level(log::LevelFilter::Info).init();
+    log_builder.filter_level(log::LevelFilter::Debug).init();
 
     let args = Args::parse();
 
