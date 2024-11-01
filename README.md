@@ -51,13 +51,13 @@ Hence, you must open three different terminals and write the following commands 
 
 ```text
 -- For Party 0:
-$ shami-rs -i 0 -n ./net_config.json -c 1 --input <INPUT>
+$ shami-rs -i 0 -n ./net_config_p0.json -c 1 --input <INPUT>
 
 -- For Party 1:
-$ shami-rs -i 1 -n ./net_config.json -c 1 --input <INPUT>
+$ shami-rs -i 1 -n ./net_config_p1.json -c 1 --input <INPUT>
 
 -- For Party 2:
-$ shami-rs -i 2 -n ./net_config.json -c 1 --input <INPUT>
+$ shami-rs -i 2 -n ./net_config_p2.json -c 1 --input <INPUT>
 ```
 
 It is important to mention that the parties are indexed in such a way that the first index is 0.
