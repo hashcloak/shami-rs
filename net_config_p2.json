@@ -1,0 +1,15 @@
+{
+  "base_port": 5000,
+  "timeout": 5000,
+  "sleep_time": 500,
+  "peer_ips": [
+    "127.0.0.1",
+    "127.0.0.1",
+    "127.0.0.1"
+  ],
+  "server_cert": "./certs/server_cert_p2.crt",
+  "priv_key": "./certs/priv_key_p2.pem",
+  "trusted_certs": [
+    "./certs/rootCA.crt"
+  ]
+}

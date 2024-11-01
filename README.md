@@ -69,31 +69,54 @@ Also, they are indexed consecutively.
 
 The configuration of the network for the execution of the protocol is written in a JSON format.
 
-The following file is an example of the configuration JSON for an execution of three parties:
+The following file is an example of the configuration JSON for the party with ID 0 for an execution of three parties:
 
 ```json
 {
   "base_port": 5000,
-  "timeout": 1000,
+  "timeout": 5000,
   "sleep_time": 500,
   "peer_ips": [
     "127.0.0.1",
     "127.0.0.1",
     "127.0.0.1"
+  ],
+  "server_cert": "./certs/server_cert_p0.crt",
+  "priv_key": "./certs/priv_key_p0.pem",
+  "trusted_certs": [
+    "./certs/rootCA.crt"
   ]
 }
 ```
 
-The `base_port`, is the port that will be used as a base to compute the actual port in which the party will be listening to.
-For a party with index `i`, the listening port is `base_port + i`. The `timeout` is the number of ***milliseconds*** that
-a party will repeatedly try to connect to another party. If the timeout is reached, the application returns an error.
-The `sleep_time` is the number of ***milliseconds*** that a party will wait before trying to connect again with another
-party in case the connection is not successful. And finally, the `peer_ips` is the list of IPs for all the
+The fields above are explained next:
+
+- The `base_port`, is the port that will be used as a base to compute the actual port in which the party will be listening to.
+For a party with index `i`, the listening port is `base_port + i`.
+- The `timeout` is the number of ***milliseconds***
+a party will repeatedly try to connect with another party. If the timeout is reached, the application returns an error.
+- The `sleep_time` is the number of ***milliseconds*** that a party will wait before trying to connect again with another
+party in case the connection is not successful.
+- The `peer_ips` is the list of IPs for all the
 peers engaged in the protocol. In this case, the array is specified in such a way that the party with index `i` has
 IP `peer_ips[i]`.
+- The `server_cert` is the certificate path for that node for secure communication.
+- The `priv_key` is the file with the private key associated with the certificate in `server_cert`. This private key is used for secure communication.
+- `trusted_certs` is a list of paths with trusted CA certificates. This is useful in executions where the certificates are self-signed.
 
 > [!WARNING]
-> All parties must have the same JSON configuration file.
+> Each party should have its configuration JSON file with the corresponding certificates and private keys.
+
+### Generating self-signed certificates for local testing
+
+The script `./generate_certs.sh` will help you to generate self-signed certificates to test the tool. To generate the certificates for
+`N` parties, you should run the command
+
+```text
+bash ./generate_certs.sh <N>
+```
+
+Then the certificates will be generated in the `./certs/` folder. Remember to add `./certs/rootCA.crt` to the list of trusted certificates and generate the JSON with the private key and certificates accordingly to each party.
 
 > [!NOTE]
 > This repository came as a result of a learning project by @hdvanegasm.
