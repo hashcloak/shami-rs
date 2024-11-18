@@ -16,7 +16,6 @@ of the field arithmetic is done from scratch.
 
 This project does not consider the following features yet:
 
-- Private and reliable communication channels.
 - The network implementation does not consider delays in communication.
 - There are not enough tests.
 - The implementation is not performant.
